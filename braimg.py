@@ -42,7 +42,7 @@ ESCAPE = chr(27)
 
 
 
-def get_pixel_safe(image, x, y, default=(0,0,0,)):
+def get_pixel_safe(image, x, y, default=0):
     if x >= image.width or y >= image.height:
         return default
 
@@ -56,14 +56,14 @@ def braillify(image):
     for y in range(0, image.height, 4):
         row = ''
         for x in range(0, image.width, 2):
-            p1 = get_pixel_safe(image, x, y, 0)
-            p2 = get_pixel_safe(image, x, y + 1, 0)
-            p3 = get_pixel_safe(image, x, y + 2, 0)
-            p4 = get_pixel_safe(image, x + 1, y, 0)
-            p5 = get_pixel_safe(image, x + 1, y + 1, 0)
-            p6 = get_pixel_safe(image, x + 1, y + 2, 0)
-            p7 = get_pixel_safe(image, x, y + 3, 0)
-            p8 = get_pixel_safe(image, x + 1, y + 3, 0)
+            p1 = get_pixel_safe(image, x, y)
+            p2 = get_pixel_safe(image, x, y + 1)
+            p3 = get_pixel_safe(image, x, y + 2)
+            p4 = get_pixel_safe(image, x + 1, y)
+            p5 = get_pixel_safe(image, x + 1, y + 1)
+            p6 = get_pixel_safe(image, x + 1, y + 2)
+            p7 = get_pixel_safe(image, x, y + 3)
+            p8 = get_pixel_safe(image, x + 1, y + 3)
 
             offset = p1 | p2 << 1 | p3 << 2 | p4 << 3 | p5 << 4 | p6 << 5 | p7 << 6 | p8 << 7
             row += chr(BRAILLE_OFFSET + offset)
