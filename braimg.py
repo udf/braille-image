@@ -5,6 +5,8 @@ import sys
 from PIL import Image
 import math
 import colorsys as coloursys
+import time
+
 
 # from: https://en.wikipedia.org/wiki/ANSI_escape_code#8-bit
 PAL_256 = [
@@ -36,75 +38,84 @@ PAL_256_IMAGE.putpalette(PAL_256_INT)
 PAL_1_IMAGE = Image.new('P', (16, 16))
 PAL_1_IMAGE.putpalette([0, 0, 0, 255, 255, 255] * 128)
 
-BRAILLE_OFFSET = 0x2800
+# constants
 ESCAPE = chr(27)
+BRAILLE_CHARS = []
+for i in range(256):
+    BRAILLE_CHARS.append( chr(0x2800 + i) )
 
-
-
-
-def get_pixel_safe(image, x, y, default=0):
-    if x >= image.width or y >= image.height:
-        return default
-
-    return image.getpixel((x, y))
-
+PI = math.pi
+PI_2_3 = PI * (2 / 3)
 
 
 
 def braillify(image):
-    lines = []
+    chars = ''
+    image_data = image.getdata()
+
+    y_offsets = []
+    for i in range(image.height):
+        y_offsets.append(i * image.width)
+
     for y in range(0, image.height, 4):
-        row = ''
         for x in range(0, image.width, 2):
-            p1 = get_pixel_safe(image, x, y)
-            p2 = get_pixel_safe(image, x, y + 1)
-            p3 = get_pixel_safe(image, x, y + 2)
-            p4 = get_pixel_safe(image, x + 1, y)
-            p5 = get_pixel_safe(image, x + 1, y + 1)
-            p6 = get_pixel_safe(image, x + 1, y + 2)
-            p7 = get_pixel_safe(image, x, y + 3)
-            p8 = get_pixel_safe(image, x + 1, y + 3)
+            p1 = image_data[x + 0 + y_offsets[y + 0]]
+            p2 = image_data[x + 0 + y_offsets[y + 1]]
+            p3 = image_data[x + 0 + y_offsets[y + 2]]
+            p4 = image_data[x + 1 + y_offsets[y + 0]]
+            p5 = image_data[x + 1 + y_offsets[y + 1]]
+            p6 = image_data[x + 1 + y_offsets[y + 2]]
+            p7 = image_data[x + 0 + y_offsets[y + 3]]
+            p8 = image_data[x + 1 + y_offsets[y + 3]]
 
             offset = p1 | p2 << 1 | p3 << 2 | p4 << 3 | p5 << 4 | p6 << 5 | p7 << 6 | p8 << 7
-            row += chr(BRAILLE_OFFSET + offset)
+            chars += BRAILLE_CHARS[offset]
 
-        lines.append(row)
-    return lines
+    return chars
 
 
 
 
 def print_with_colour(image, braille_chars):
-    lines = []
-    last_index = -1
-    for y in range(0, image.height):
-        row = ''
-        for x in range(0, image.width):
-            index = get_pixel_safe(image, x, y)
-
-            if index != last_index:
-                row += ESCAPE + '[38;5;{}m'.format(index)
-                last_index = index
-            row += braille_chars[y][x]
-        print(''.join(row))
+    last_colour = -1
+    output = ''
+    for i, colour in enumerate(image.getdata()):
+        if colour != last_colour:
+            output += ESCAPE + '[38;5;{}m'.format(colour)
+            last_colour = colour
+        output += braille_chars[i]
+        if (i+1) % image.width == 0:
+            output += '\n'
+    print(output)
 
 
 
 
-def normalise_v(rgb, v=1):
-    hsv = coloursys.rgb_to_hsv(rgb[0] / 255, rgb[1] / 255, rgb[2] / 255)
-    rgb_new = coloursys.hsv_to_rgb(hsv[0], hsv[1], v)
-    return round(rgb_new[0] * 255), round(rgb_new[1] * 255), round(rgb_new[2] * 255)
+# adapted from https://stackoverflow.com/a/34407200
+def remove_luma(r, g, b):
+    r, g, b = r / 255, g / 255, b / 255
+
+    c = r + g + b
+    h, s, v = 0, 0, 1
+    if c >= 0.001:
+        p = 2 * max(0, b*b + g*g + r*r - g*r - b*g - b*r)**0.5
+        h = math.atan2(b - g, (2*r - b - g) / 3**0.5)
+        s = p / (c + p)
+        #v = (c + p) / 3
+
+    r = v * (1 + s * (math.cos(h) - 1))
+    g = v * (1 + s * (math.cos(h + PI_2_3) - 1))
+    b = v * (1 + s * (math.cos(h - PI_2_3) - 1))
+
+    return round(r * 255), round(g * 255), round(b * 255)
 
 
 
-
-def image_normalize_v(image, v=1):
+def image_remove_luma(image):
     new_data = []
     for colour in image.getdata():
-        new_data.append( normalise_v(colour, v) )
+        new_data.append( remove_luma(colour[0], colour[1], colour[2]) )
     image.putdata(new_data)
-
 
 
 
@@ -134,7 +145,6 @@ def quantizetopalette(silf, palette, dither=True):
 
 
 
-
 def main():
     if len(sys.argv) < 2:
         print("usage: braimg.py /path/to/image [max width in chars]")
@@ -146,9 +156,14 @@ def main():
     max_w = max_cols*2
 
     # load image
-    source_image = Image.open(sys.argv[1]).convert('RGB')
-    if source_image.width > max_w:
-        source_image.thumbnail((max_w, max_w,), Image.ANTIALIAS)
+    raw_image = Image.open(sys.argv[1]).convert('RGB')
+    if raw_image.width > max_w:
+        raw_image.thumbnail((max_w, max_w,), Image.ANTIALIAS)
+
+    source_size = (math.ceil(raw_image.width / 2) * 2, math.ceil(raw_image.height / 4) * 4)
+    source_image = Image.new('RGB', source_size)
+    source_image.paste(raw_image)
+
 
     # convert to dithered braille
     braille_image = quantizetopalette(source_image, PAL_1_IMAGE)
@@ -156,10 +171,10 @@ def main():
     
     # make per character colour image
     colour_image = source_image.resize(
-        (math.ceil(source_image.width/2), math.ceil(source_image.height/4)),
+        (source_image.width//2, source_image.height//4),
         Image.ANTIALIAS
     )
-    image_normalize_v(colour_image)
+    image_remove_luma(colour_image)
     colour_image = quantizetopalette(colour_image, PAL_256_IMAGE)
 
     # set black background
