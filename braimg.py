@@ -44,8 +44,7 @@ BRAILLE_CHARS = []
 for i in range(256):
     BRAILLE_CHARS.append( chr(0x2800 + i) )
 
-PI = math.pi
-PI_2_3 = PI * (2 / 3)
+PI_2_3 = math.pi * (2 / 3)
 
 
 
@@ -93,21 +92,11 @@ def print_with_colour(image, braille_chars):
 
 # adapted from https://stackoverflow.com/a/34407200
 def remove_luma(r, g, b):
-    r, g, b = r / 255, g / 255, b / 255
+    if r + g + b == 0:
+        return 255, 255, 255
 
-    c = r + g + b
-    h, s, v = 0, 0, 1
-    if c >= 0.001:
-        p = 2 * max(0, b*b + g*g + r*r - g*r - b*g - b*r)**0.5
-        h = math.atan2(b - g, (2*r - b - g) / 3**0.5)
-        s = p / (c + p)
-        #v = (c + p) / 3
-
-    r = v * (1 + s * (math.cos(h) - 1))
-    g = v * (1 + s * (math.cos(h + PI_2_3) - 1))
-    b = v * (1 + s * (math.cos(h - PI_2_3) - 1))
-
-    return round(r * 255), round(g * 255), round(b * 255)
+    scale = 255 / max(r, g, b)
+    return round(r * scale), round(g * scale), round(b * scale)
 
 
 
