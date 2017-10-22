@@ -9,15 +9,10 @@
 #include <thread>
 
 #define MAX_CHARS 160
-#define PI_2_3 M_PI * (2.0f / 3.0f)
 
 using namespace cimg_library;
 using namespace std;
 
-using Clock = std::chrono::steady_clock;
-using std::chrono::time_point;
-using std::chrono::duration_cast;
-using std::chrono::milliseconds;
 
 unsigned ceil_multiple(const unsigned n, const unsigned m) {
     return ((n + m - 1) / m) * m;
@@ -76,7 +71,6 @@ void remove_luma(unsigned char &r, unsigned char &g, unsigned char &b) {
 
 
 int main(int argc, char **argv) {
-    time_point<Clock> start;
     std::setlocale(LC_ALL, "en_US.utf8");
     cimg::exception_mode(0);
 
